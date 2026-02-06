@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GhostCloak | Painel Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { dark: '#0f172a', card: '#1e293b', primary: '#3b82f6' } } }
+        }
+    </script>
+</head>
+<body class="bg-dark text-white font-sans antialiased">
+
+    <div class="border-b border-gray-700 bg-card p-4 flex justify-between items-center">
+        <h1 class="text-xl font-bold text-primary tracking-wider">GHOST<span class="text-white">CLOAK</span></h1>
+        <div class="text-sm text-gray-400">Admin Mode</div>
+    </div>
+
+    <div class="container mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <div class="bg-card p-6 rounded-lg shadow-lg border border-gray-700">
+            <h2 class="text-lg font-semibold mb-4 text-gray-200">Nova Campanha</h2>
+            <form id="createForm" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">ID da Campanha</label>
+                    <input type="text" id="campId" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm focus:border-primary focus:outline-none" placeholder="ex: promo-natal">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Nome</label>
+                    <input type="text" id="campName" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm" placeholder="Campanha Black Friday">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1 text-green-400">Money Page (Black)</label>
+                    <input type="url" id="moneyUrl" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm" placeholder="https://oferta-secreta.com">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1 text-blue-400">Safe Page (White)</label>
+                    <input type="url" id="safeUrl" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm" placeholder="https://blog-noticias.com">
+                </div>
+                <button type="submit" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition">Criar Link Blindado</button>
+            </form>
+        </div>
+
+        <div class="md:col-span-2 space-y-6">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-card p-4 rounded border border-gray-700">
+                    <div class="text-gray-400 text-xs">Tráfego Real (Money)</div>
+                    <div class="text-3xl font-bold text-green-400" id="moneyCount">0</div>
+                </div>
+                <div class="bg-card p-4 rounded border border-gray-700">
+                    <div class="text-gray-400 text-xs">Bots/Revisores Bloqueados</div>
+                    <div class="text-3xl font-bold text-red-400" id="safeCount">0</div>
+                </div>
+            </div>
+
+            <div class="bg-card p-6 rounded-lg border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4">Campanhas Ativas</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-gray-400">
+                        <thead class="bg-dark text-gray-200 uppercase text-xs">
+                            <tr>
+                                <th class="p-3">ID</th>
+                                <th class="p-3">Nome</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Integração</th>
+                            </tr>
+                        </thead>
+                        <tbody id="campList" class="divide-y divide-gray-700">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+
+        // Criar Campanha
+        document.getElementById('createForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                id: document.getElementById('campId').value,
+                name: document.getElementById('campName').value,
+                safe_page: document.getElementById('safeUrl').value,
+                money_page: document.getElementById('moneyUrl').value
+            };
+            await fetch(`${API_URL}/campaigns`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            alert('Campanha Criada!');
+            loadStats();
+        });
+
+        // Carregar Dados
+        async function loadStats() {
+            const res = await fetch(`${API_URL}/stats`);
+            const data = await res.json();
+            
+            // Atualizar Contadores
+            let money = 0, safe = 0;
+            data.logs.forEach(log => {
+                if(log.type === 'money') money = log.count;
+                if(log.type === 'safe') safe = log.count;
+            });
+            document.getElementById('moneyCount').innerText = money;
+            document.getElementById('safeCount').innerText = safe;
+
+            // Atualizar Tabela
+            const tbody = document.getElementById('campList');
+            tbody.innerHTML = data.campaigns.map(c => `
+                <tr class="hover:bg-gray-800">
+                    <td class="p-3 font-mono text-blue-400">${c.id}</td>
+                    <td class="p-3">${c.name}</td>
+                    <td class="p-3"><span class="bg-green-900 text-green-300 px-2 py-1 rounded text-xs">Ativo</span></td>
+                    <td class="p-3">
+                        <button onclick="alert('Copie o index.php e configure o ID: ${c.id}')" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">Gerar Script</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>
