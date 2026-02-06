@@ -1,130 +1,215 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GhostCloak | Painel Admin</title>
+    <title>GHOST CLOAK | ELITE</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script>
         tailwind.config = {
-            theme: { extend: { colors: { dark: '#0f172a', card: '#1e293b', primary: '#3b82f6' } } }
+            darkMode: 'class',
+            theme: { extend: { colors: { 
+                dark: '#0B0E14', 
+                card: '#151A23', 
+                accent: '#3B82F6',
+                success: '#10B981',
+                danger: '#EF4444'
+            }}}
         }
     </script>
+    <style>
+        body { background-color: #0B0E14; color: #e2e8f0; }
+        .glass { background: rgba(21, 26, 35, 0.8); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
+    </style>
 </head>
-<body class="bg-dark text-white font-sans antialiased">
+<body class="antialiased min-h-screen flex flex-col">
 
-    <div class="border-b border-gray-700 bg-card p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-primary tracking-wider">GHOST<span class="text-white">CLOAK</span></h1>
-        <div class="text-sm text-gray-400">Admin Mode</div>
-    </div>
-
-    <div class="container mx-auto p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        <div class="bg-card p-6 rounded-lg shadow-lg border border-gray-700">
-            <h2 class="text-lg font-semibold mb-4 text-gray-200">Nova Campanha</h2>
-            <form id="createForm" class="space-y-4">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">ID da Campanha</label>
-                    <input type="text" id="campId" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm focus:border-primary focus:outline-none" placeholder="ex: promo-natal">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Nome</label>
-                    <input type="text" id="campName" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm" placeholder="Campanha Black Friday">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1 text-green-400">Money Page (Black)</label>
-                    <input type="url" id="moneyUrl" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm" placeholder="https://oferta-secreta.com">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1 text-blue-400">Safe Page (White)</label>
-                    <input type="url" id="safeUrl" class="w-full bg-dark border border-gray-600 rounded p-2 text-sm" placeholder="https://blog-noticias.com">
-                </div>
-                <button type="submit" class="w-full bg-primary hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition">Criar Link Blindado</button>
-            </form>
+    <header class="border-b border-gray-800 bg-card/50 backdrop-blur-md sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="w-3 h-3 rounded-full bg-accent animate-pulse"></div>
+                <h1 class="text-xl font-bold tracking-tight">GHOST<span class="text-accent">CLOAK</span> <span class="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded border border-gray-700">ELITE V2</span></h1>
+            </div>
+            <button class="text-sm text-gray-400 hover:text-white transition">Logout</button>
         </div>
+    </header>
 
-        <div class="md:col-span-2 space-y-6">
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-card p-4 rounded border border-gray-700">
-                    <div class="text-gray-400 text-xs">Tráfego Real (Money)</div>
-                    <div class="text-3xl font-bold text-green-400" id="moneyCount">0</div>
-                </div>
-                <div class="bg-card p-4 rounded border border-gray-700">
-                    <div class="text-gray-400 text-xs">Bots/Revisores Bloqueados</div>
-                    <div class="text-3xl font-bold text-red-400" id="safeCount">0</div>
+    <main class="container mx-auto px-6 py-8 flex-grow">
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="glass p-6 rounded-xl shadow-lg border-l-4 border-success">
+                <p class="text-gray-400 text-xs uppercase font-semibold">Tráfego Aprovado (R$)</p>
+                <h3 class="text-3xl font-bold text-white mt-1" id="money-stat">0</h3>
+            </div>
+            <div class="glass p-6 rounded-xl shadow-lg border-l-4 border-danger">
+                <p class="text-gray-400 text-xs uppercase font-semibold">Ameaças Bloqueadas</p>
+                <h3 class="text-3xl font-bold text-white mt-1" id="block-stat">0</h3>
+            </div>
+            <div class="glass p-6 rounded-xl shadow-lg border-l-4 border-accent">
+                <p class="text-gray-400 text-xs uppercase font-semibold">CTR Médio (Real)</p>
+                <h3 class="text-3xl font-bold text-white mt-1">--%</h3>
+            </div>
+            <div class="glass p-6 rounded-xl shadow-lg flex items-center justify-center cursor-pointer hover:bg-white/5 transition" onclick="document.getElementById('modal-new').classList.remove('hidden')">
+                <div class="text-center">
+                    <div class="text-accent text-2xl mb-1">+</div>
+                    <span class="text-sm font-semibold">Nova Campanha</span>
                 </div>
             </div>
+        </div>
 
-            <div class="bg-card p-6 rounded-lg border border-gray-700">
-                <h3 class="text-lg font-semibold mb-4">Campanhas Ativas</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm text-gray-400">
-                        <thead class="bg-dark text-gray-200 uppercase text-xs">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-2 space-y-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold">Campanhas Ativas</h2>
+                    <button class="text-xs text-accent hover:underline" onclick="loadData()">Atualizar</button>
+                </div>
+                
+                <div class="glass rounded-xl overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-800/50 text-gray-400 uppercase text-xs">
                             <tr>
-                                <th class="p-3">ID</th>
-                                <th class="p-3">Nome</th>
-                                <th class="p-3">Status</th>
-                                <th class="p-3">Integração</th>
+                                <th class="p-4">Nome / Slug</th>
+                                <th class="p-4">Destino (Money)</th>
+                                <th class="p-4 text-center">Config</th>
+                                <th class="p-4 text-right">Ação</th>
                             </tr>
                         </thead>
-                        <tbody id="campList" class="divide-y divide-gray-700">
+                        <tbody id="campaign-list" class="divide-y divide-gray-800">
                             </tbody>
                     </table>
                 </div>
             </div>
+
+            <div class="lg:col-span-1">
+                <h2 class="text-lg font-semibold mb-4">Live Traffic Logs</h2>
+                <div class="glass rounded-xl p-4 h-[500px] overflow-y-auto space-y-3 font-mono text-xs" id="logs-container">
+                    <div class="text-center text-gray-500 py-10">Aguardando tráfego...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modal-new" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="bg-card border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl relative">
+            <button onclick="document.getElementById('modal-new').classList.add('hidden')" class="absolute top-4 right-4 text-gray-500 hover:text-white">✕</button>
+            <h2 class="text-xl font-bold mb-6 text-white">Criar Link Blindado</h2>
+            
+            <form id="create-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Nome da Campanha</label>
+                    <input type="text" id="c-name" class="w-full bg-dark border border-gray-700 rounded-lg p-3 text-sm text-white focus:border-accent outline-none" placeholder="Ex: Black Friday Oferta 1">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Slug (Identificador na URL)</label>
+                    <input type="text" id="c-slug" class="w-full bg-dark border border-gray-700 rounded-lg p-3 text-sm text-white focus:border-accent outline-none" placeholder="ex: promo-01">
+                </div>
+                <div>
+                    <label class="block text-xs text-success mb-1">Money Page (Onde o cliente vai)</label>
+                    <input type="url" id="c-money" class="w-full bg-dark border border-success/30 rounded-lg p-3 text-sm text-white outline-none" placeholder="https://seudominio.com/oferta">
+                </div>
+                <div>
+                    <label class="block text-xs text-white mb-1">Safe Page (Onde o bot vai)</label>
+                    <input type="url" id="c-safe" class="w-full bg-dark border border-gray-700 rounded-lg p-3 text-sm text-white outline-none" placeholder="https://g1.globo.com/artigo-neutro">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">País Permitido</label>
+                        <select id="c-country" class="w-full bg-dark border border-gray-700 rounded-lg p-3 text-sm text-white">
+                            <option value="BR">Brasil</option>
+                            <option value="US">Estados Unidos</option>
+                            <option value="PT">Portugal</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-accent hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-blue-500/20 mt-2">LANÇAR CAMPANHA</button>
+            </form>
         </div>
     </div>
 
     <script>
-        const API_URL = 'http://localhost:3000/api';
+        const API_URL = 'http://localhost:3000/api'; // MUDE ISSO PARA SUA URL DA VERCEL/VPS
 
-        // Criar Campanha
-        document.getElementById('createForm').addEventListener('submit', async (e) => {
+        async function loadData() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const data = await res.json();
+                
+                // Render Campanhas
+                const list = document.getElementById('campaign-list');
+                list.innerHTML = data.campaigns.map(c => `
+                    <tr class="hover:bg-white/5 transition">
+                        <td class="p-4">
+                            <div class="font-bold text-white">${c.name}</div>
+                            <div class="text-xs text-gray-500 font-mono">${c.slug}</div>
+                        </td>
+                        <td class="p-4 text-gray-400 text-xs truncate max-w-[150px]">${c.money_page}</td>
+                        <td class="p-4 text-center">
+                            <span class="text-xs bg-gray-800 border border-gray-700 px-2 py-1 rounded text-gray-300">${c.country_allowed} Only</span>
+                        </td>
+                        <td class="p-4 text-right">
+                            <button onclick="copyScript('${c.slug}')" class="text-xs bg-accent/20 text-accent hover:bg-accent hover:text-white px-3 py-1.5 rounded transition">Get Script</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                // Render Logs
+                const logs = document.getElementById('logs-container');
+                let moneyCount = 0;
+                let blockedCount = 0;
+
+                logs.innerHTML = data.hits.map(h => {
+                    if(h.is_bot) blockedCount++; else moneyCount++;
+                    const color = h.is_bot ? 'text-red-400' : 'text-green-400';
+                    const icon = h.is_bot ? '🛡️' : '💰';
+                    return `
+                    <div class="border-b border-gray-800 pb-2 mb-2">
+                        <div class="flex justify-between">
+                            <span class="${color} font-bold">${icon} ${h.is_bot ? 'BLOQUEADO' : 'APROVADO'}</span>
+                            <span class="text-gray-600">${h.campaign_slug}</span>
+                        </div>
+                        <div class="text-gray-500 truncate mt-1">${h.reason || 'Acesso Válido'}</div>
+                        <div class="text-gray-700 text-[10px] mt-1 text-right">${h.ip || 'IP Oculto'}</div>
+                    </div>`;
+                }).join('');
+
+                document.getElementById('money-stat').innerText = moneyCount;
+                document.getElementById('block-stat').innerText = blockedCount;
+
+            } catch (error) {
+                console.error("Erro ao carregar:", error);
+            }
+        }
+
+        document.getElementById('create-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = {
-                id: document.getElementById('campId').value,
-                name: document.getElementById('campName').value,
-                safe_page: document.getElementById('safeUrl').value,
-                money_page: document.getElementById('moneyUrl').value
+            const payload = {
+                name: document.getElementById('c-name').value,
+                slug: document.getElementById('c-slug').value,
+                safe_page: document.getElementById('c-safe').value,
+                money_page: document.getElementById('c-money').value,
+                country_allowed: document.getElementById('c-country').value
             };
+
             await fetch(`${API_URL}/campaigns`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
+                body: JSON.stringify(payload)
             });
-            alert('Campanha Criada!');
-            loadStats();
+            document.getElementById('modal-new').classList.add('hidden');
+            loadData();
         });
 
-        // Carregar Dados
-        async function loadStats() {
-            const res = await fetch(`${API_URL}/stats`);
-            const data = await res.json();
-            
-            // Atualizar Contadores
-            let money = 0, safe = 0;
-            data.logs.forEach(log => {
-                if(log.type === 'money') money = log.count;
-                if(log.type === 'safe') safe = log.count;
-            });
-            document.getElementById('moneyCount').innerText = money;
-            document.getElementById('safeCount').innerText = safe;
-
-            // Atualizar Tabela
-            const tbody = document.getElementById('campList');
-            tbody.innerHTML = data.campaigns.map(c => `
-                <tr class="hover:bg-gray-800">
-                    <td class="p-3 font-mono text-blue-400">${c.id}</td>
-                    <td class="p-3">${c.name}</td>
-                    <td class="p-3"><span class="bg-green-900 text-green-300 px-2 py-1 rounded text-xs">Ativo</span></td>
-                    <td class="p-3">
-                        <button onclick="alert('Copie o index.php e configure o ID: ${c.id}')" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded">Gerar Script</button>
-                    </td>
-                </tr>
-            `).join('');
+        function copyScript(slug) {
+            const code = `<?php $cloaker_slug='${slug}'; include('cloaker.php'); ?>`;
+            navigator.clipboard.writeText(code);
+            alert('Código PHP copiado! Cole no topo do seu arquivo index.php');
         }
 
-        loadStats();
+        // Auto load
+        loadData();
+        setInterval(loadData, 5000); // Live update a cada 5s
     </script>
 </body>
 </html>
