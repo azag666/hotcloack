@@ -156,7 +156,6 @@
                                 <option value="ALL">🌍 Todos</option>
                             </select>
                         </div>
-
                         <div class="flex items-center justify-between bg-card p-3 rounded border border-gray-700">
                             <span class="text-sm text-gray-300">Permitir Desktop (PC)</span>
                             <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
@@ -164,7 +163,6 @@
                                 <label for="c-desktop" class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-600 cursor-pointer"></label>
                             </div>
                         </div>
-
                         <div class="flex items-center justify-between bg-card p-3 rounded border border-gray-700">
                             <span class="text-sm text-gray-300">Bloquear VPN/Proxy</span>
                             <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
@@ -172,7 +170,6 @@
                                 <label for="c-vpn" class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-600 cursor-pointer"></label>
                             </div>
                         </div>
-
                          <div class="flex items-center justify-between bg-card p-3 rounded border border-gray-700">
                             <span class="text-sm text-gray-300">Exigir Social (FB/Insta)</span>
                             <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
@@ -186,7 +183,6 @@
                 <div>
                     <label class="block text-xs text-gray-400 mb-1">Pixel ID (Facebook) - Opcional</label>
                     <input type="text" id="c-pixel" class="w-full bg-input border border-gray-700 rounded-lg p-3 text-white focus:border-accent outline-none" placeholder="1234567890">
-                    <p class="text-[10px] text-gray-500 mt-1">*Será injetado automaticamente na Presell</p>
                 </div>
 
                 <button type="submit" class="w-full bg-accent hover:bg-blue-600 text-white font-bold py-4 rounded-lg transition shadow-lg shadow-blue-500/20 text-lg">
@@ -197,28 +193,24 @@
     </div>
 
     <script>
-        const API_URL = '/api'; // Rota relativa pois está no mesmo domínio na Vercel
+        const API_URL = '/api'; 
 
-        // Modal Controls
         function openModal() { document.getElementById('modal-new').classList.remove('hidden'); }
         function closeModal() { document.getElementById('modal-new').classList.add('hidden'); }
 
-        // Carregar Dados
         async function loadDashboard() {
             try {
                 const res = await fetch(`${API_URL}/stats`);
                 const data = await res.json();
                 
-                // Stats Update
-                document.getElementById('stat-campaigns').innerText = data.campaigns.length || 0;
+                document.getElementById('stat-campaigns').innerText = data.campaigns ? data.campaigns.length : 0;
                 let money = 0, bots = 0;
                 if(data.hits) data.hits.forEach(h => h.is_bot ? bots++ : money++);
                 document.getElementById('stat-money').innerText = money;
                 document.getElementById('stat-bot').innerText = bots;
 
-                // Tabela Render
                 const tbody = document.getElementById('campaign-list');
-                if(data.campaigns.length === 0) {
+                if(!data.campaigns || data.campaigns.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-gray-500">Nenhuma campanha criada.</td></tr>';
                     return;
                 }
@@ -240,7 +232,7 @@
                         </td>
                         <td class="p-5">
                             <a href="${c.money_page}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 truncate max-w-[200px] block">
-                                <i class="fa-solid fa-external-link"></i> Abrir Link
+                                <i class="fa-solid fa-external-link"></i> Link
                             </a>
                         </td>
                         <td class="p-5 text-right">
@@ -256,7 +248,6 @@
             }
         }
 
-        // Criar Campanha
         document.getElementById('create-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = e.target.querySelector('button[type="submit"]');
@@ -289,23 +280,17 @@
             btn.innerHTML = 'CRIAR BLINDAGEM';
         });
 
-        // --- GERADOR DE PRESELL AUTOMÁTICO ---
+        // --- CORREÇÃO DO BUG AQUI ---
         function downloadPresell(slug, pixelId) {
-            const domain = window.location.origin; // Pega o domínio atual da Vercel
+            const domain = window.location.origin; 
             
-            // Template do arquivo index.php
+            // Usamos a barra invertida \ para escapar a tag script
+            // Isso impede que o navegador ache que o script da página acabou aqui
             const phpCode = `<?php
-/**
- * GHOSTCLOAK PRESELL GENERATOR
- * Campanha: ${slug}
- * Gerado em: ${new Date().toLocaleDateString()}
- */
-
 $API_URL = "${domain}/api/cloak";
 $CAMPAIGN_SLUG = "${slug}";
 $PIXEL_ID = "${pixelId}";
 
-// 1. Coleta dados do usuário
 function get_ip() {
     if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) return $_SERVER["HTTP_CF_CONNECTING_IP"];
     if (isset($_SERVER["HTTP_X_FORWARDED_FOR"])) return explode(',', $_SERVER["HTTP_X_FORWARDED_FOR"])[0];
@@ -317,10 +302,9 @@ $payload = json_encode([
     'user_agent' => $_SERVER['HTTP_USER_AGENT'],
     'referrer' => $_SERVER['HTTP_REFERER'] ?? '',
     'ip' => get_ip(),
-    'screen_width' => 1920 // O JS abaixo atualizará isso se for humano
+    'screen_width' => 1920 
 ]);
 
-// 2. Verifica com a API (Server Side)
 $ch = curl_init($API_URL);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
@@ -330,17 +314,13 @@ $response = curl_exec($ch);
 curl_close($ch);
 $data = json_decode($response, true);
 
-// 3. Lógica de Redirecionamento
 $target = $data['target'] ?? 'https://google.com';
 $action = $data['action'] ?? 'safe';
 
-// Se for Bot ou Safe Page, redireciona direto
 if ($action === 'safe') {
     header("Location: $target");
     exit;
 }
-
-// Se for Money Page (Humano Aprovado), mostra a Presell
 ?>
 <!DOCTYPE html>
 <html lang="pt-br">
@@ -348,7 +328,7 @@ if ($action === 'safe') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Carregando...</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com"><\/script>
     
     <?php if($PIXEL_ID): ?>
     <script>
@@ -362,7 +342,7 @@ if ($action === 'safe') {
     'https://connect.facebook.net/en_US/fbevents.js');
     fbq('init', '<?php echo $PIXEL_ID; ?>');
     fbq('track', 'PageView');
-    </script>
+    <\/script>
     <?php endif; ?>
 
     <style>
@@ -371,7 +351,6 @@ if ($action === 'safe') {
     </style>
 </head>
 <body class="bg-gray-100 h-screen flex flex-col justify-center items-center">
-    
     <div class="bg-white p-8 rounded-lg shadow-md text-center max-w-sm w-full mx-4">
         <div class="loader mx-auto mb-4"></div>
         <h2 class="text-gray-800 font-bold text-lg mb-2">Verificando segurança...</h2>
@@ -379,15 +358,13 @@ if ($action === 'safe') {
     </div>
 
     <script>
-        // Redirecionamento Final para a Money Page
         setTimeout(function() {
             window.location.href = "<?php echo $target; ?>";
-        }, 1500); // 1.5s delay para marcar o Pixel
-    </script>
+        }, 1500); 
+    <\/script>
 </body>
 </html>`;
 
-            // Download do arquivo
             const blob = new Blob([phpCode], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -398,7 +375,6 @@ if ($action === 'safe') {
             window.URL.revokeObjectURL(url);
         }
 
-        // Init
         loadDashboard();
     </script>
 </body>
