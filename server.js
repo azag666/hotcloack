@@ -1,4 +1,3 @@
-// server.js (ou api/index.js na Vercel)
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
@@ -6,143 +5,208 @@ const requestIp = require('request-ip');
 const UAParser = require('ua-parser-js');
 const axios = require('axios');
 
-// CONFIGURAÇÃO
+// INICIALIZAÇÃO
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(requestIp.mw());
 
-// CONEXÃO COM SUPABASE (Coloque suas chaves reais aqui ou em .env)
-const supabaseUrl = 'SUA_URL_DO_SUPABASE';
-const supabaseKey = 'SUA_KEY_DO_SUPABASE';
+// --- CONFIGURAÇÃO DE AMBIENTE ---
+// Pegando as chaves das Variáveis de Ambiente da Vercel
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY; 
+const proxyKey = process.env.PROXY_KEY; // Opcional: Chave do proxycheck.io
+
+// Conexão com o Banco de Dados
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// API DE VERIFICAÇÃO DE PROXY (Crie conta grátis no proxycheck.io ou similar)
-// Se não tiver chave, a verificação de VPN será limitada.
-const PROXY_KEY = 'SUA_API_KEY_PROXYCHECK_IO'; 
-
-// --- FUNÇÃO DE INTELIGÊNCIA MILITAR ---
-async function checkRisk(ip, userAgent, settings) {
-    let reason = null;
-    let isBot = false;
-
-    // 1. ANÁLISE DE USER AGENT (Nível 1)
+// --- FUNÇÃO DE INTELIGÊNCIA MILITAR (O CÉREBRO) ---
+async function checkRisk(ip, userAgent, referrer, settings) {
     const parser = new UAParser(userAgent);
-    const browser = parser.getBrowser();
     const os = parser.getOS();
+    const device = parser.getDevice();
+    const browser = parser.getBrowser();
     const uaUpper = userAgent.toUpperCase();
 
-    const botTerms = ['FACEBOOK', 'GOOGLE', 'TWITTER', 'BOT', 'CRAWL', 'HEADLESS', 'LIGHTHOUSE', 'PTST', 'SELENIUM'];
+    // 1. FILTRO DE BOTS BÁSICOS (User Agent)
+    const botTerms = ['FACEBOOK', 'GOOGLE', 'TWITTER', 'BOT', 'CRAWL', 'SPIDER', 'HEADLESS', 'LIGHTHOUSE', 'PTST', 'SELENIUM', 'PYTHON', 'CURL'];
     if (botTerms.some(term => uaUpper.includes(term))) {
-        return { isBot: true, reason: `Bot Detectado (UA: ${term})` };
+        return { isBot: true, reason: `Bot Detectado (UA: ${browser.name || 'Unknown'})` };
     }
 
-    // 2. DISPOSITIVO (Nível 2)
-    if (!settings.allow_desktop && (os.name === 'Windows' || os.name === 'Mac OS')) {
-         return { isBot: true, reason: 'Bloqueio de Desktop (Apenas Mobile)' };
+    // 2. FILTRO DE DESKTOP (Se a campanha for Mobile Only)
+    if (!settings.allow_desktop) {
+        // Bloqueia Windows, Mac OS e Linux (Desktop)
+        const desktopOS = ['Windows', 'Mac OS', 'Ubuntu', 'Linux'];
+        if (desktopOS.includes(os.name) && device.type !== 'mobile' && device.type !== 'tablet') {
+             return { isBot: true, reason: 'Bloqueio de Desktop (Apenas Celular Permitido)' };
+        }
     }
 
-    // 3. CONSULTA EXTERNA DE IP (Nível 3 - O mais importante)
-    // Verifica se é VPN, Proxy ou Datacenter (AWS, Azure, Facebook Servers)
-    try {
-        if (PROXY_KEY) {
-            const riskCheck = await axios.get(`http://proxycheck.io/v2/${ip}?key=${PROXY_KEY}&vpn=1&asn=1`);
+    // 3. FILTRO DE REFERRER (Se a campanha exigir origem Social)
+    if (settings.require_referrer) {
+        const socialSources = ['facebook', 'instagram', 'tiktok', 'youtube', 't.co']; // t.co = twitter
+        const ref = (referrer || '').toLowerCase();
+        
+        // Se não tiver referrer ou se o referrer não contiver nenhuma das redes sociais
+        const isSocial = socialSources.some(source => ref.includes(source));
+        
+        if (!ref || !isSocial) {
+            return { isBot: true, reason: 'Acesso Direto/Desconhecido (Exigido Social)' };
+        }
+    }
+
+    // 4. FILTRO DE IP / VPN / DATACENTER (Nível Avançado)
+    // Só executa se tivermos uma chave de API configurada e a configuração da campanha pedir
+    if (proxyKey) {
+        try {
+            // Verifica API externa (proxycheck.io é um exemplo popular e barato/grátis)
+            const riskCheck = await axios.get(`http://proxycheck.io/v2/${ip}?key=${proxyKey}&vpn=1&asn=1`);
             const data = riskCheck.data[ip];
             
             if (data) {
-                // Bloqueia se for Proxy/VPN (a menos que permitido)
-                if (data.proxy === "yes" && !settings.allow_vpn) {
+                // Bloqueia VPN/Proxy se a campanha não permitir
+                if (!settings.allow_vpn && data.proxy === "yes") {
                     return { isBot: true, reason: `VPN/Proxy Detectado (${data.provider || 'Unk'})` };
                 }
                 
-                // Bloqueia Datacenters (Facebook/Google hospedagem)
+                // Bloqueia Datacenters (Facebook/Google/AWS sempre usam isso)
                 if (data.type === "Hosting" || data.type === "Business") {
-                     return { isBot: true, reason: `IP de Datacenter/Servidor (${data.operator})` };
+                     return { isBot: true, reason: `IP de Servidor/Datacenter (${data.operator})` };
                 }
 
-                // Bloqueia País incorreto
-                if (settings.country_allowed && data.iso !== settings.country_allowed) {
-                    return { isBot: true, reason: `Geolocalização Errada (${data.iso})` };
+                // Bloqueia País (Geolocalização)
+                if (settings.country_allowed && settings.country_allowed !== 'ALL') {
+                    if (data.iso !== settings.country_allowed) {
+                        return { isBot: true, reason: `Geolocalização Errada (${data.iso})` };
+                    }
                 }
             }
+        } catch (e) {
+            console.error("Erro na verificação de IP (API externa):", e.message);
+            // Em caso de falha da API, geralmente deixamos passar para não perder venda (Fail Open)
+            // Ou bloqueamos se quisermos segurança máxima. Aqui vou deixar passar.
         }
-    } catch (e) {
-        console.error("Erro na API de IP:", e.message);
-        // Em caso de erro na API, por segurança, podemos deixar passar ou bloquear.
-        // Vamos logar mas deixar passar para não perder vendas reais por erro de API.
     }
 
     return { isBot: false, reason: 'Tráfego Limpo' };
 }
 
-// --- ROTAS ---
+// --- ROTAS DA API ---
 
-// ROTA 1: O Check Principal
+// 1. CLOAKING CHECK (Chamado pela Presell/Index.php)
 app.post('/api/cloak', async (req, res) => {
-    const { slug, user_agent, referrer, screen_width } = req.body;
-    // Na Vercel, o IP real vem no header x-forwarded-for
-    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.clientIp; 
+    try {
+        const { slug, user_agent, referrer, screen_width } = req.body;
+        // Na Vercel/Proxy, o IP real vem no header x-forwarded-for
+        const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.clientIp || '127.0.0.1'; 
 
-    // Busca configurações da campanha
-    const { data: campaign, error } = await supabase
-        .from('campaigns')
-        .select('*')
-        .eq('slug', slug)
-        .single();
+        // Busca configurações da campanha
+        const { data: campaign, error } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('slug', slug)
+            .single();
 
-    if (error || !campaign) {
-        return res.json({ action: 'safe', target: 'https://google.com' }); // Fallback
-    }
+        // Se não achar campanha ou erro, manda para o Google (Fallback seguro)
+        if (error || !campaign) {
+            return res.json({ action: 'safe', target: 'https://google.com' });
+        }
 
-    if (campaign.status !== 'active') {
-         return res.json({ action: 'safe', target: campaign.safe_page });
-    }
+        // Se campanha pausada -> Safe Page
+        if (campaign.status !== 'active') {
+             return res.json({ action: 'safe', target: campaign.safe_page });
+        }
 
-    // JS Challenge (Verifica se o navegador enviou resolução de tela - Bots burros não enviam)
-    if (!screen_width || screen_width < 100) {
-        await supabase.from('hits').insert({ campaign_slug: slug, ip, is_bot: true, reason: 'Sem Resolução de Tela (Bot Simples)' });
-        return res.json({ action: 'safe', target: campaign.safe_page });
-    }
+        // JS Challenge Básico (Bots simples não enviam screen_width ou enviam 0)
+        if (!screen_width || screen_width < 100) {
+            await supabase.from('hits').insert({ campaign_slug: slug, ip, is_bot: true, reason: 'Sem Resolução de Tela (Bot Simples)' });
+            return res.json({ action: 'safe', target: campaign.safe_page });
+        }
 
-    // Executa a Análise Militar
-    const risk = await checkRisk(ip, user_agent, campaign);
+        // --- EXECUTA A ANÁLISE MILITAR ---
+        const risk = await checkRisk(ip, user_agent, referrer, campaign);
 
-    // Salva o Log
-    await supabase.from('hits').insert({
-        campaign_slug: slug,
-        ip: ip, // Em produção, faça hash do IP para privacidade se necessário
-        country: 'XX', // Preencher com dados da API de IP
-        device: user_agent.substring(0, 50),
-        is_bot: risk.isBot,
-        reason: risk.reason
-    });
+        // Salva o Log no Supabase
+        // Nota: O insert é assíncrono, não usamos await aqui para responder mais rápido ao usuário
+        supabase.from('hits').insert({
+            campaign_slug: slug,
+            ip: ip, 
+            device: user_agent.substring(0, 50), // Corta string longa
+            is_bot: risk.isBot,
+            reason: risk.reason
+        }).then(() => {}); // Fire and forget
 
-    if (risk.isBot) {
-        return res.json({ action: 'safe', target: campaign.safe_page });
-    } else {
-        return res.json({ action: 'money', target: campaign.money_page });
+        // DECISÃO FINAL
+        if (risk.isBot) {
+            return res.json({ action: 'safe', target: campaign.safe_page });
+        } else {
+            return res.json({ action: 'money', target: campaign.money_page });
+        }
+
+    } catch (err) {
+        console.error("Erro Fatal no Server:", err);
+        // Em caso de pânico, sempre Safe Page
+        return res.json({ action: 'safe', target: 'https://google.com' }); 
     }
 });
 
-// ROTA 2: Criar Campanha
+// 2. CRIAR CAMPANHA (Chamado pelo Dashboard)
 app.post('/api/campaigns', async (req, res) => {
-    const { slug, name, safe_page, money_page, country_allowed } = req.body;
-    const { data, error } = await supabase
-        .from('campaigns')
-        .insert([{ slug, name, safe_page, money_page, country_allowed }]);
-    
-    if(error) return res.status(500).json(error);
-    res.json({ success: true });
+    try {
+        const { 
+            slug, name, safe_page, money_page, country_allowed,
+            allow_vpn, allow_desktop, require_referrer, pixel_id 
+        } = req.body;
+
+        // Validação
+        if (!slug || !money_page || !safe_page) {
+            return res.status(400).json({ error: 'Campos obrigatórios faltando.' });
+        }
+
+        const { data, error } = await supabase
+            .from('campaigns')
+            .insert([{ 
+                slug, name, safe_page, money_page, country_allowed,
+                allow_vpn, allow_desktop, require_referrer, pixel_id,
+                status: 'active'
+            }]);
+        
+        if(error) throw error;
+        res.json({ success: true });
+
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// ROTA 3: Dashboard Stats
+// 3. ESTATÍSTICAS (Chamado pelo Dashboard)
 app.get('/api/stats', async (req, res) => {
-    // Retorna campanhas e contagem simples
-    const { data: campaigns } = await supabase.from('campaigns').select('*');
-    const { data: hits } = await supabase.from('hits').select('is_bot, campaign_slug').order('created_at', { ascending: false }).limit(500);
-    
-    res.json({ campaigns, hits });
+    try {
+        // Busca Campanhas
+        const { data: campaigns } = await supabase
+            .from('campaigns')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+        // Busca últimos 200 hits (logs) para o gráfico "Matrix"
+        const { data: hits } = await supabase
+            .from('hits')
+            .select('is_bot, campaign_slug, reason, ip, created_at')
+            .order('created_at', { ascending: false })
+            .limit(200);
+        
+        res.json({ campaigns, hits });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
+// Porta padrão ou 3000
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`GhostCloak Elite rodando na porta ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`GhostCloak Elite rodando na porta ${PORT}`);
+});
+
+// Export necessário para Vercel Serverless Functions
+module.exports = app;
